@@ -1,21 +1,20 @@
 import React, { useState } from 'react';
-import { User, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Play } from 'lucide-react';
 
 export default function LoginPage({ onLoginSuccess }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('demo');
+  const [password, setPassword] = useState('password');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
 
   const handleLogin = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setErrorMessage('');
     setIsSubmitting(true);
 
     setTimeout(() => {
-      // Requirements: username = demo, password = password
       if (username.trim() === 'demo' && password === 'password') {
         setIsSubmitting(false);
         onLoginSuccess({ username: 'demo' });
@@ -25,13 +24,16 @@ export default function LoginPage({ onLoginSuccess }) {
         setIsShaking(true);
         setTimeout(() => setIsShaking(false), 500);
       }
-    }, 400);
+    }, 200);
   };
 
-  const handleQuickFill = () => {
+  const handleQuickPlay = () => {
     setUsername('demo');
     setPassword('password');
-    setErrorMessage('');
+    setIsSubmitting(true);
+    setTimeout(() => {
+      onLoginSuccess({ username: 'demo' });
+    }, 200);
   };
 
   return (
@@ -40,10 +42,10 @@ export default function LoginPage({ onLoginSuccess }) {
       <div className="card-header">
         <div className="brand-badge">
           <ShieldCheck size={16} />
-          <span>Secure Authentication</span>
+          <span>Cubecoin Gaming Hub</span>
         </div>
         <h1 className="card-title">Welcome Back</h1>
-        <p className="card-subtitle">Please enter your details to sign in</p>
+        <p className="card-subtitle">Sign in to play Cubecoin Animal Prediction</p>
       </div>
 
       {/* Error Alert */}
@@ -98,13 +100,14 @@ export default function LoginPage({ onLoginSuccess }) {
           </div>
         </div>
 
+        {/* Primary 1-Click Game Launch Button */}
         <button type="submit" className="btn-submit" disabled={isSubmitting}>
           {isSubmitting ? (
-            <span>Logging in...</span>
+            <span>Starting Game...</span>
           ) : (
             <>
-              <span>Sign In</span>
-              <ArrowRight size={18} />
+              <span>Sign In & Start Game</span>
+              <Play size={18} fill="currentColor" />
             </>
           )}
         </button>
@@ -114,9 +117,8 @@ export default function LoginPage({ onLoginSuccess }) {
       <div className="demo-credentials-box">
         <div className="demo-title">
           <span>Demo Credentials</span>
-          <button type="button" className="btn-quick-fill" onClick={handleQuickFill}>
-            <Sparkles size={12} style={{ display: 'inline', marginRight: '4px' }} />
-            Auto Fill
+          <button type="button" className="btn-quick-fill" onClick={handleQuickPlay}>
+            ⚡ Instant Play
           </button>
         </div>
         <div className="demo-pills">

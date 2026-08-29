@@ -21,13 +21,26 @@ const ANIMALS = [
   { id: 10, name: 'Monkey', emoji: '🐵' },
 ];
 
-// 5 chip removed -> starts from 10
+// Left chips: 10, 30, 40, 50 (5 chip removed)
 const LEFT_CHIPS = [10, 30, 40, 50];
 const RIGHT_CHIPS = [100, 200, 500, 1000];
 
 export default function App() {
-  // Auth State
-  const [user, setUser] = useState(null);
+  // User Authentication State with localStorage persistence
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('cubecoin_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const handleLoginSuccess = (userData) => {
+    localStorage.setItem('cubecoin_user', JSON.stringify(userData));
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('cubecoin_user');
+    setUser(null);
+  };
 
   // Balance & Won Points state with localStorage persistence
   const [balance, setBalance] = useState(() => {
@@ -247,18 +260,18 @@ export default function App() {
       <div className="app-container">
         <div className="ambient-glow ambient-glow-1"></div>
         <div className="ambient-glow ambient-glow-2"></div>
-        <LoginPage onLoginSuccess={setUser} />
+        <LoginPage onLoginSuccess={handleLoginSuccess} />
       </div>
     );
   }
 
-  // Authenticated -> Show Game Dashboard
+  // Authenticated -> Show Game Dashboard Automatically
   return (
     <div className="app-container" style={{ minHeight: '100vh' }}>
       <div className="ambient-glow ambient-glow-1"></div>
       <div className="ambient-glow ambient-glow-2"></div>
 
-      <BlankDashboard user={user} onLogout={() => setUser(null)}>
+      <BlankDashboard user={user} onLogout={handleLogout}>
         <div className="game-layout">
           {/* Result Modal Popup */}
           <ResultModal resultData={resultModal} />
