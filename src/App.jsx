@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import LoginPage from './components/LoginPage';
+import BlankDashboard from './components/BlankDashboard';
 import Header from './components/Header';
 import ChipPanel from './components/ChipPanel';
 import AnimalCard from './components/AnimalCard';
@@ -19,10 +21,14 @@ const ANIMALS = [
   { id: 10, name: 'Monkey', emoji: '🐵' },
 ];
 
-const LEFT_CHIPS = [5, 10, 30, 40, 50];
+// 5 chip removed -> starts from 10
+const LEFT_CHIPS = [10, 30, 40, 50];
 const RIGHT_CHIPS = [100, 200, 500, 1000];
 
 export default function App() {
+  // Auth State
+  const [user, setUser] = useState(null);
+
   // Balance & Won Points state with localStorage persistence
   const [balance, setBalance] = useState(() => {
     const saved = localStorage.getItem('cubecoin_balance');
@@ -49,10 +55,13 @@ export default function App() {
   // Bets object mapping card id (1-10) to total bet amount on that card
   const [bets, setBets] = useState({});
 
-  // Countdown timer in seconds (starts at 120 = 02:00)
-  const [timeLeft, setTimeLeft] = useState(120);
+  // History stack for Revert Last Bet action
+  const [betHistory, setBetHistory] = useState([]);
 
-  // Game locked state during resolution
+  // Countdown timer in seconds (starts at 60 = 01:00)
+  const [timeLeft, setTimeLeft] = useState(60);
+
+  // Game locked state during round resolution
   const [isLocked, setIsLocked] = useState(false);
 
   // Result modal state
@@ -63,17 +72,15 @@ export default function App() {
 
   const betsRef = useRef(bets);
   const balanceRef = useRef(balance);
-  const wonPointsRef = useRef(wonPoints);
 
   useEffect(() => {
     betsRef.current = bets;
     balanceRef.current = balance;
-    wonPointsRef.current = wonPoints;
-  }, [bets, balance, wonPoints]);
+  }, [bets, balance]);
 
-  // Timer Countdown Effect
+  // Timer Countdown Effect (1 minute = 60s)
   useEffect(() => {
-    if (isLocked) return;
+    if (!user || isLocked) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -87,7 +94,7 @@ export default function App() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isLocked]);
+  }, [user, isLocked]);
 
   // Handle Placing a Bet on a Card
   const handlePlaceBet = (cardId) => {
@@ -103,6 +110,12 @@ export default function App() {
       ...prev,
       [cardId]: (prev[cardId] || 0) + activeChip,
     }));
+
+    // Record action for Revert Last Bet
+    setBetHistory((prev) => [
+      ...prev,
+      { betsPlaced: [{ cardId, amount: activeChip }] }
+    ]);
   };
 
   // Quick Bet: Odd Numbers (Cards 1, 3, 5, 7, 9)
@@ -124,6 +137,9 @@ export default function App() {
       });
       return updated;
     });
+
+    const betsPlaced = oddCardIds.map((cardId) => ({ cardId, amount: activeChip }));
+    setBetHistory((prev) => [...prev, { betsPlaced }]);
   };
 
   // Quick Bet: Even Numbers (Cards 2, 4, 6, 8, 10)
@@ -145,19 +161,46 @@ export default function App() {
       });
       return updated;
     });
+
+    const betsPlaced = evenCardIds.map((cardId) => ({ cardId, amount: activeChip }));
+    setBetHistory((prev) => [...prev, { betsPlaced }]);
   };
 
-  // Cancel All Bids (Refund active bets back to total balance)
+  // Revert Last Bet (Undo last bet action)
+  const handleRevertLastBet = () => {
+    if (isLocked || betHistory.length === 0) return;
+
+    const lastAction = betHistory[betHistory.length - 1];
+    let refundTotal = 0;
+
+    setBets((prev) => {
+      const updated = { ...prev };
+      lastAction.betsPlaced.forEach(({ cardId, amount }) => {
+        refundTotal += amount;
+        if (updated[cardId]) {
+          updated[cardId] = Math.max(0, updated[cardId] - amount);
+          if (updated[cardId] === 0) delete updated[cardId];
+        }
+      });
+      return updated;
+    });
+
+    setBalance((prev) => prev + refundTotal);
+    setBetHistory((prev) => prev.slice(0, -1));
+  };
+
+  // Cancel All Bids (Refund all active bets back to total balance)
   const handleCancelAllBids = () => {
     if (isLocked) return;
     const totalBetSum = Object.values(bets).reduce((sum, val) => sum + val, 0);
     if (totalBetSum > 0) {
       setBalance((prev) => prev + totalBetSum);
       setBets({});
+      setBetHistory([]);
     }
   };
 
-  // Round Resolution when Timer Hits 0
+  // Round Resolution when Timer Hits 00:00 (Fixed 2x Multiplier)
   const handleRoundEnd = () => {
     setIsLocked(true);
 
@@ -166,10 +209,10 @@ export default function App() {
     const winningCard = ANIMALS.find((a) => a.id === winningId);
     setWinningCardId(winningId);
 
-    // Random multiplier between 5x and 10x
-    const multiplier = Math.floor(Math.random() * 6) + 5;
+    // Fixed Multiplier: 2x
+    const multiplier = 2;
 
-    // Calculate winnings
+    // Calculate winnings (2x payout for bet on winning card)
     const userBetOnWinner = betsRef.current[winningId] || 0;
     const wonAmount = userBetOnWinner * multiplier;
 
@@ -189,63 +232,86 @@ export default function App() {
       setResultModal(null);
       setWinningCardId(null);
       setBets({});
-      setTimeLeft(120);
+      setBetHistory([]);
+      setTimeLeft(60);
       setIsLocked(false);
     }, 3000);
   };
 
   const hasActiveBets = Object.values(bets).some((val) => val > 0);
+  const hasBetHistory = betHistory.length > 0;
 
+  // Unauthenticated -> Show Login Screen
+  if (!user) {
+    return (
+      <div className="app-container">
+        <div className="ambient-glow ambient-glow-1"></div>
+        <div className="ambient-glow ambient-glow-2"></div>
+        <LoginPage onLoginSuccess={setUser} />
+      </div>
+    );
+  }
+
+  // Authenticated -> Show Game Dashboard
   return (
-    <div className="game-layout">
-      {/* Result Modal Popup */}
-      <ResultModal resultData={resultModal} />
+    <div className="app-container" style={{ minHeight: '100vh' }}>
+      <div className="ambient-glow ambient-glow-1"></div>
+      <div className="ambient-glow ambient-glow-2"></div>
 
-      {/* Top Header */}
-      <Header balance={balance} wonPoints={wonPoints} />
+      <BlankDashboard user={user} onLogout={() => setUser(null)}>
+        <div className="game-layout">
+          {/* Result Modal Popup */}
+          <ResultModal resultData={resultModal} />
 
-      {/* Main Playing Arena */}
-      <main className="main-arena">
-        {/* Left Side Chips */}
-        <ChipPanel
-          side="left"
-          chips={LEFT_CHIPS}
-          activeChip={activeChip}
-          onSelectChip={setActiveChip}
-        />
+          {/* Top Header */}
+          <Header balance={balance} wonPoints={wonPoints} />
 
-        {/* Center 2x5 Grid of Animal Cards */}
-        <div className="cards-grid">
-          {ANIMALS.map((card) => (
-            <AnimalCard
-              key={card.id}
-              card={card}
-              betAmount={bets[card.id] || 0}
-              isWinning={winningCardId === card.id}
-              onPlaceBet={handlePlaceBet}
-              isLocked={isLocked}
+          {/* Main Playing Arena */}
+          <main className="main-arena">
+            {/* Left Side Chips (10, 30, 40, 50) */}
+            <ChipPanel
+              side="left"
+              chips={LEFT_CHIPS}
+              activeChip={activeChip}
+              onSelectChip={setActiveChip}
             />
-          ))}
+
+            {/* Center 2x5 Grid of Animal Cards */}
+            <div className="cards-grid">
+              {ANIMALS.map((card) => (
+                <AnimalCard
+                  key={card.id}
+                  card={card}
+                  betAmount={bets[card.id] || 0}
+                  isWinning={winningCardId === card.id}
+                  onPlaceBet={handlePlaceBet}
+                  isLocked={isLocked}
+                />
+              ))}
+            </div>
+
+            {/* Right Side Chips (100, 200, 500, 1000) */}
+            <ChipPanel
+              side="right"
+              chips={RIGHT_CHIPS}
+              activeChip={activeChip}
+              onSelectChip={setActiveChip}
+            />
+          </main>
+
+          {/* Bottom Control Bar */}
+          <BottomControls
+            timeLeft={timeLeft}
+            onCancelAllBids={handleCancelAllBids}
+            onRevertLastBet={handleRevertLastBet}
+            onBetOddNumbers={handleBetOddNumbers}
+            onBetEvenNumbers={handleBetEvenNumbers}
+            hasActiveBets={hasActiveBets}
+            hasBetHistory={hasBetHistory}
+            isLocked={isLocked}
+          />
         </div>
-
-        {/* Right Side Chips */}
-        <ChipPanel
-          side="right"
-          chips={RIGHT_CHIPS}
-          activeChip={activeChip}
-          onSelectChip={setActiveChip}
-        />
-      </main>
-
-      {/* Bottom Control Bar */}
-      <BottomControls
-        timeLeft={timeLeft}
-        onCancelAllBids={handleCancelAllBids}
-        onBetOddNumbers={handleBetOddNumbers}
-        onBetEvenNumbers={handleBetEvenNumbers}
-        hasActiveBets={hasActiveBets}
-        isLocked={isLocked}
-      />
+      </BlankDashboard>
     </div>
   );
 }

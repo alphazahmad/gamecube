@@ -1,12 +1,14 @@
 import React from 'react';
-import { Timer, Trash2, Zap } from 'lucide-react';
+import { Timer, Trash2, Undo2, Zap } from 'lucide-react';
 
 export default function BottomControls({
   timeLeft,
   onCancelAllBids,
+  onRevertLastBet,
   onBetOddNumbers,
   onBetEvenNumbers,
   hasActiveBets,
+  hasBetHistory,
   isLocked
 }) {
   // Format seconds into MM:SS
@@ -22,13 +24,23 @@ export default function BottomControls({
       <div className="timer-container">
         <Timer className="timer-icon" size={26} />
         <div>
-          <div className="timer-label">Next Round In</div>
+          <div className="timer-label">Round Ends In</div>
           <div className="timer-display">{formatTime(timeLeft)}</div>
         </div>
       </div>
 
       {/* Quick Actions */}
       <div className="action-buttons">
+        <button
+          className="btn-action btn-revert"
+          onClick={onRevertLastBet}
+          disabled={!hasBetHistory || isLocked}
+          title="Revert your last placed bet action"
+        >
+          <Undo2 size={18} />
+          <span>Revert Last Bet</span>
+        </button>
+
         <button
           className="btn-action btn-cancel"
           onClick={onCancelAllBids}
